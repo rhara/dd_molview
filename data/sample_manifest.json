@@ -1,0 +1,20 @@
+[
+  {
+    "member_id": "7L10",
+    "receptor_pdb": "7L10.pdb",
+    "rigid_pdbqt": "",
+    "flex_pdbqt": null,
+    "center": [0.0, 0.0, 0.0],
+    "size": [0.0, 0.0, 0.0],
+    "flexres": []
+  },
+  {
+    "member_id": "7L11",
+    "receptor_pdb": "7L11.pdb",
+    "rigid_pdbqt": "",
+    "flex_pdbqt": null,
+    "center": [0.0, 0.0, 0.0],
+    "size": [0.0, 0.0, 0.0],
+    "flexres": []
+  }
+]

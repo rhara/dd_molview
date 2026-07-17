@@ -1,0 +1,8 @@
+build/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
+CMakeUserPresets.json
+.DS_Store
