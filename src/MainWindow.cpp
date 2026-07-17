@@ -11,6 +11,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QScrollArea>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QTableView>
@@ -109,6 +110,19 @@ void MainWindow::buildWidgets() {
 
     settingsPanel_ = new DisplaySettingsPanel();
 
+    // Unlike the tables (QTableView) and the sequence panel (QTextBrowser),
+    // DisplaySettingsPanel is a plain QWidget stacked full of controls via
+    // QFormLayout/QVBoxLayout -- with no scrolling behavior of its own, its
+    // dock can never be resized smaller than that whole stack's natural
+    // height. Wrapping it in a QScrollArea (setWidgetResizable(true), so
+    // the *contents* still resize to the viewport's width) gives the dock
+    // a scrollbar instead, so it can be shrunk like every other dock.
+    auto* settingsScrollArea = new QScrollArea();
+    settingsScrollArea->setWidget(settingsPanel_);
+    settingsScrollArea->setWidgetResizable(true);
+    settingsScrollArea->setFrameShape(QFrame::NoFrame);
+    settingsScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
     // Every panel (including the 3D view itself) is its own QDockWidget --
     // movable, floatable, closable -- rather than a fixed splitter layout,
     // so any of them can be dragged to a different edge, floated as its own
@@ -117,7 +131,7 @@ void MainWindow::buildWidgets() {
     // saveState()/restoreState() (restoreLayout/closeEvent) to correctly
     // identify which saved geometry belongs to which dock.
     setDockNestingEnabled(true);
-    settingsDock_ = makeDock("Settings", settingsPanel_, "settings_dock");
+    settingsDock_ = makeDock("Settings", settingsScrollArea, "settings_dock");
     proteinDock_ = makeDock("Proteins", proteinTable_, "protein_dock");
     ligandDock_ = makeDock("Ligands", ligandTable_, "ligand_dock");
     view3dDock_ = makeDock("3D View", view3dWidget_, "view3d_dock");
