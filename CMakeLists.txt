@@ -37,12 +37,16 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets WebEngineWidgets WebChannel)
 
-# --- Embedded Python (dd_viewer/dd_molview's own interpreter) --------
-# dd_cview reuses dd_viewer/dd_molview's existing Python logic as-is (see
-# python/dd_cview_backend.py) rather than reimplementing PDB/SDF parsing,
-# contact detection, scoring, etc. in C++. It therefore needs an
-# interpreter with dd_viewer/dd_molview (editable-)installed into it --
-# default to dd_cview's own dedicated `dd_cview` conda env (see README.md's
+# --- Embedded Python (dd_viewer's own interpreter) --------------------
+# dd_cview reuses dd_viewer's existing Python logic as-is, plus its own
+# vendored dd_cview_core module (see python/dd_cview_backend.py and
+# python/dd_cview_core/, the latter absorbed from the now-retired
+# dd_molview project), rather than reimplementing PDB/SDF parsing, contact
+# detection, scoring, etc. in C++. It therefore needs an interpreter with
+# dd_viewer (editable-)installed into it -- dd_cview_core itself needs no
+# install, since python/ is added to sys.path directly at runtime (see
+# PythonBridge.cpp) -- default to dd_cview's own dedicated `dd_cview` conda
+# env (see README.md's
 # install instructions; kept separate from the `dd` env other dd_* projects
 # share, so rebuilding/upgrading those doesn't risk breaking this build),
 # but let a caller override it (a differently-named env, a plain venv) via
@@ -68,8 +72,8 @@ endif()
 message(STATUS "dd_cview: embedding Python at ${DD_CVIEW_PYTHON}")
 
 # PYTHONHOME for that same interpreter -- PythonBridge.cpp sets this
-# explicitly before Py_Initialize so site-packages (dd_viewer, dd_molview,
-# rdkit, biopython, pandas, ...) resolve correctly regardless of what
+# explicitly before Py_Initialize so site-packages (dd_viewer, rdkit,
+# biopython, pandas, ...) resolve correctly regardless of what
 # environment (if any) is active in the shell that launches dd_cview.
 # Queried directly from the interpreter itself (`sys.prefix`) rather than
 # derived via path arithmetic on DD_CVIEW_PYTHON -- the "how many

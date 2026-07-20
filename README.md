@@ -2,20 +2,23 @@
 
 # dd_cview
 
-A native C++/Qt6 reimplementation of
-[`dd_molview`](../dd_molview)'s desktop GUI shell -- the same four-panel
-workbench (protein table / ligand table / 3D view / sequence view) for
-interactive protein-ligand structure analysis, with every window, dock,
-table, and event handler rewritten in C++/Qt instead of PySide6. The
-computational logic underneath (PDB/SDF parsing, contact/interaction
-detection, scoring, RMSD, per-chain sequence extraction, 3D-scene HTML
-generation) is **not** reimplemented: `dd_cview` embeds a Python
-interpreter (via [pybind11](https://github.com/pybind/pybind11)) and calls
-straight into `dd_viewer`/`dd_molview`'s existing, unmodified Python
-packages for all of it, through one narrow JSON-in/JSON-out module,
+A native C++/Qt6 reimplementation of the retired `dd_molview-desktop`
+(PySide6) app's GUI shell -- the same four-panel workbench (protein table /
+ligand table / 3D view / sequence view) for interactive protein-ligand
+structure analysis, with every window, dock, table, and event handler
+rewritten in C++/Qt instead of PySide6. The computational logic underneath
+(PDB/SDF parsing, contact/interaction detection, scoring, RMSD, per-chain
+sequence extraction, 3D-scene HTML generation) is **not** reimplemented:
+`dd_cview` embeds a Python interpreter (via
+[pybind11](https://github.com/pybind/pybind11)) and calls straight into
+`dd_viewer`'s existing, unmodified Python package, plus its own vendored
+`dd_cview_core` module (multi-receptor/ligand collections, sequence
+extraction/HTML rendering, dashboard tables -- absorbed unmodified from
+`dd_molview`'s core logic when that project was retired in favor of this
+one), through one narrow JSON-in/JSON-out module,
 [`python/dd_cview_backend.py`](python/dd_cview_backend.py).
 
-`dd_molview-desktop` (PySide6) is functionally complete but noticeably
+`dd_molview-desktop` (PySide6) was functionally complete but noticeably
 sluggish for interactive use -- table selection, settings toggles, and
 residue picks all route through Python's own Qt bindings and its
 single-threaded interpreter for *every* Qt event, not just the RDKit/
@@ -46,7 +49,8 @@ binding round-trip it didn't need to.
                         │ plain function calls, unmodified
                         ▼
         dd_viewer (parsing, interactions, scoring, scene HTML)
-        dd_molview (multi-receptor/ligand collections, sequence, dashboard)
+        dd_cview_core (multi-receptor/ligand collections, sequence, dashboard --
+                       vendored, absorbed from the retired dd_molview project)
 ```
 
 `PythonBridge` (`src/PythonBridge.h`/`.cpp`) is the only place `<pybind11/
@@ -58,8 +62,8 @@ build hazard: `Python.h` and Qt's `qobjectdefs.h` both define a bare
 the pybind11 header confined to one non-`QObject` `.cpp` file avoids it
 entirely, rather than fighting it with `QT_NO_KEYWORDS` everywhere.
 
-`Session` (the Python-side counterpart) mirrors
-`dd_molview.desktop.main_window.MainWindow`'s own state and orchestration
+`Session` (the Python-side counterpart) was modeled on the retired
+`dd_molview-desktop`'s own `MainWindow` state and orchestration
 (`receptor_entries`, `ligand_entries`, `active_receptor_idx`,
 `active_ligand_idx`, `reference_mol`, and the `_refresh_view`-equivalent
 recompute step) one-for-one; the C++ `MainWindow` owns only *display* state
@@ -76,28 +80,39 @@ Every platform needs the same three things: CMake ≥3.21 with a C++20
 compiler, Qt6 (`Core`, `Widgets`, `WebEngineWidgets`, `WebChannel` -- the
 `WebEngineWidgets` part specifically means a full Qt6 + Chromium-based
 `qtwebengine` install is required, not just `qtbase`), and a Python
-environment with `dd_viewer`/`dd_molview` installed. Only the first two
-are platform-specific to set up.
+environment with `dd_viewer` installed (`dd_cview_core`, under `python/`,
+needs no separate install -- see below). Only the first two are
+platform-specific to set up.
 
 `dd_cview` gets its own dedicated conda env, **`dd_cview`** -- kept
 separate from the `dd` env other `dd_*` projects share, so rebuilding or
 upgrading a package for one of those doesn't risk breaking this build (and
-vice versa). It only needs `dd_viewer`/`dd_molview` themselves plus the
-subset of their dependencies `dd_cview_backend.py` actually imports at
+vice versa). It only needs `dd_viewer` itself plus the subset of its
+dependencies `dd_cview_backend.py`/`dd_cview_core` actually import at
 runtime (RDKit, biopython, pandas, numpy, py3Dmol) and `pybind11` --
-*not* their own extra GUI/web dependencies (Streamlit, PySide6), which
+*not* `dd_viewer`'s own extra GUI/web dependencies (Streamlit), which
 `dd_cview`'s embedded backend never touches:
 
 ```bash
 mamba create -n dd_cview -c conda-forge \
-    python=3.12 rdkit biopython pandas numpy py3dmol pybind11 \
+    python=3.12 rdkit biopython pandas numpy py3dmol pybind11 pytest \
     qt6-main qt6-webengine
 conda activate dd_cview
 
-# dd_viewer/dd_molview themselves aren't on conda-forge -- editable-install
-# straight from their checkouts, --no-deps since their conda-installed
-# dependencies above already cover everything dd_cview actually imports.
-pip install --no-deps -e ../dd_viewer -e ../dd_molview
+# dd_viewer itself isn't on conda-forge -- editable-install straight from
+# its checkout, --no-deps since the conda-installed dependencies above
+# already cover everything dd_cview actually imports. dd_cview_core (see
+# python/dd_cview_core/) is this project's own vendored module -- no
+# install needed, python/ is added to sys.path directly at runtime.
+pip install --no-deps -e ../dd_viewer
+```
+
+`dd_cview_core`'s own pytest suite (`python/tests/`, ported from
+`dd_molview`'s test suite when that project's core logic was absorbed)
+runs standalone, no C++ build required:
+
+```bash
+PYTHONPATH=python pytest python/tests/
 ```
 
 `qt6-main` + `qt6-webengine` above pull a complete Qt6 (including
@@ -117,7 +132,7 @@ configured, falling back to the `dd_cview` env under the platform's
 default miniforge location if no conda env is active -- override with
 `-DDD_CVIEW_PYTHON=/path/to/python3` (or `...\python.exe`) on any platform
 to point at a different environment (a differently-named conda env, a
-plain venv) that has `dd_viewer`/`dd_molview` installed.
+plain venv) that has `dd_viewer` installed.
 
 ### macOS (Homebrew Qt6)
 
@@ -277,9 +292,8 @@ Poses...", "Open Reference...", "Open Manifest..."), exactly as in
 
 **If no poses file is given at all**, every loaded receptor is scanned for
 embedded ligands and the results merged into one ligand list -- same
-all-or-nothing auto-extraction rule as `dd_molview` (see its README for the
-full contract); this logic runs unmodified inside `dd_molview.load_all`,
-`dd_cview` just calls it.
+all-or-nothing auto-extraction rule as the retired `dd_molview` (this logic
+runs unmodified inside `dd_cview_core.load_all`, `dd_cview` just calls it).
 
 ### Ensemble manifest.json
 
@@ -287,14 +301,14 @@ full contract); this logic runs unmodified inside `dd_molview.load_all`,
 ./build/dd_cview --manifest data/sample_manifest.json
 ```
 
-Same dd_docking-style `manifest.json` format `dd_molview` reads (a plain
+Same dd_docking-style `manifest.json` format `dd_cview_core` reads (a plain
 JSON list of `{member_id, receptor_pdb, ...}` objects, duck-typed, no
 `dd_docking` import) -- loaded additively alongside any `--receptor` paths.
 
 ## Features
 
-Every panel behaves identically to `dd_molview-desktop`'s own (same
-underlying `dd_viewer`/`dd_molview` calls, just through native `QTableView`/
+Every panel behaves identically to the retired `dd_molview-desktop`'s own
+(same underlying `dd_viewer`/`dd_cview_core` calls, just through native `QTableView`/
 `QWebEngineView`/`QTextBrowser` widgets instead of PySide6's):
 
 - **Protein-selection panel**: one row per loaded receptor (label,
@@ -345,8 +359,7 @@ underlying `dd_viewer`/`dd_molview` calls, just through native `QTableView`/
   menu there); **Ctrl+Q** on Windows.
 
 **Camera behavior** and **multi-residue selection** follow the exact same
-rules as `dd_molview-desktop` (see [its
-README](../dd_molview/README.md#usage) for the full writeup) -- switching
+rules the retired `dd_molview-desktop` used -- switching
 the active protein/ligand row or toggling a display setting never moves
 the camera; only dragging/zooming it yourself, "Center on Ligand", or
 "Zoom to Highlighted Residues" does.
@@ -369,9 +382,9 @@ level.
 | File | Contents |
 |---|---|
 | `PythonBridge.h`/`.cpp` | The only file that touches `<pybind11/embed.h>`. Owns the embedded interpreter (`py::scoped_interpreter`) and the one `Session` object; every method converts to/from `QJsonDocument` and plain Qt/std types. |
-| `MainWindow.h`/`.cpp` | Dock construction, menu/toolbar, layout persistence, all Qt signal handlers, and the central `refreshView()` recompute-and-redraw method -- the C++ analog of `dd_molview.desktop.main_window.MainWindow`. |
+| `MainWindow.h`/`.cpp` | Dock construction, menu/toolbar, layout persistence, all Qt signal handlers, and the central `refreshView()` recompute-and-redraw method -- the C++ analog of the retired `dd_molview.desktop.main_window.MainWindow`. |
 | `TableModel.h`/`.cpp` | One reusable read-only `QAbstractTableModel` wrapping a `TableData` (columns/display-rows/raw-rows), used for all three tables. |
-| `DisplaySettingsPanel.h`/`.cpp` | The settings dock's controls -- one-to-one with `dd_molview.desktop.controls.DisplaySettingsPanel`. |
+| `DisplaySettingsPanel.h`/`.cpp` | The settings dock's controls -- one-to-one with the retired `dd_molview.desktop.controls.DisplaySettingsPanel`. |
 | `SequencePanel.h`/`.cpp` | A `QTextBrowser` subclass with the sequence panel's font/link-handling setup. |
 | `Viewer3D.h`/`.cpp` | Wraps the 3D view's `QWebEngineView`: loading a freshly built scene, the async `getView()` camera-capture round-trip, and `zoomTo({chain})` for chain-header clicks. |
 | `main.cpp` | Entry point: CLI parsing (`--receptor`/`--poses`/`--reference`/`--manifest`), `QApplication` setup, and an optional `DD_CVIEW_SCREENSHOT` env-var hook for headless verification (see below). |
@@ -383,14 +396,14 @@ level.
 
 - **No computational logic is duplicated in C++.** Every PDB/SDF parse,
   distance calculation, RDKit call, or HTML-generation step happens in
-  Python, inside `dd_viewer`/`dd_molview`, completely unmodified. `dd_cview`
+  Python, inside `dd_viewer`/`dd_cview_core`, completely unmodified. `dd_cview`
   only ever passes primitives across the pybind11 boundary.
 - **`PythonBridge` never leaks a `py::object`.** Its public API (see
   `PythonBridge.h`) is Qt/std types only, so no other file in the project
   needs to know pybind11 exists, and the `Python.h`/`qobjectdefs.h` `slots`
   clash never has a chance to occur outside `PythonBridge.cpp`.
 - **PYTHONHOME is set explicitly, and `sys.path`'s cwd entry is stripped.**
-  `dd_viewer`, `dd_molview`, and `dd_cview` all live as sibling directories
+  `dd_viewer` and `dd_cview` live as sibling directories
   under the same parent (`~/work`); if `dd_cview` is launched with that
   parent as its working directory, a bare `""` `sys.path` entry resolves
   `import dd_viewer` to a broken *namespace* package rooted at the
@@ -435,10 +448,10 @@ level.
 
 ## Sample data (`data/`)
 
-Same bundled SARS-CoV-2 Mpro sample set as `dd_molview` (`6W63_receptor.pdb`
-/ `6W63_redock.sdf` / `6W63_ligand_ref.sdf`, `7L10.pdb` / `7L11.pdb`,
-`sample_manifest.json`) -- see [its README](../dd_molview/README.md#sample-data-data)
-for what each file is for.
+Same bundled SARS-CoV-2 Mpro sample set the retired `dd_molview` used
+(`6W63_receptor.pdb` / `6W63_redock.sdf` / `6W63_ligand_ref.sdf`,
+`7L10.pdb` / `7L11.pdb`, `sample_manifest.json`), also used by
+`python/tests/`'s pytest suite.
 
 ## Verified behavior
 
@@ -459,7 +472,7 @@ Proteins/Ligands tables and the Chains panel (including yellow contact-
 residue highlighting) correctly; launching with no arguments shows the
 correct empty state (empty tables, "Show reference ligand" disabled); and
 launching with the process's working directory set to the parent directory
-shared by `dd_viewer`/`dd_molview`/`dd_cview` (the exact scenario the
+shared by `dd_viewer`/`dd_cview` (the exact scenario the
 `sys.path` fix above addresses) still loads data correctly. As with
 `dd_molview-desktop`, real `QWebEngineView` WebGL rendering isn't
 observable under `QT_QPA_PLATFORM=offscreen` -- the 3D view's actual
@@ -467,8 +480,8 @@ on-screen rendering and camera-preservation behavior needs a real display
 to confirm visually (this also means "Save 3D View Screenshot..." itself
 hasn't been visually confirmed to capture real rendered content, only that
 it doesn't crash and writes *a* PNG); the interaction/camera *logic*
-itself is exercised (unmodified) by `dd_viewer`/`dd_molview`'s own test
-suites, which this project doesn't duplicate.
+itself is exercised (unmodified) by `dd_viewer`'s own test suite and
+`dd_cview_core`'s (`python/tests/`), which this project doesn't duplicate.
 
 `cmake --install`'s relocatability was verified directly: installing to a
 throwaway prefix (`cmake --install build --prefix /tmp/...`) and running

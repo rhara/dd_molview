@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
     } catch (const std::exception& e) {
         QMessageBox::critical(
             nullptr, "dd_cview failed to start",
-            QString("Could not initialize the embedded Python interpreter (dd_viewer/dd_molview):\n\n%1")
+            QString("Could not initialize the embedded Python interpreter (dd_viewer/dd_cview_core):\n\n%1")
                 .arg(QString::fromUtf8(e.what())));
         return 1;
     }

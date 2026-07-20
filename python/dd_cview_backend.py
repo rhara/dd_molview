@@ -1,10 +1,13 @@
 """Embedded-Python backend for dd_cview's native C++/Qt GUI.
 
-dd_cview reimplements dd_molview-desktop's *GUI shell* (windows, docks,
-tables, the sequence widget, the 3D-view container, event wiring) in C++/Qt,
-while reusing dd_viewer/dd_molview's existing computational logic (PDB/SDF
-parsing, contact/interaction detection, scoring, RMSD, sequence extraction,
-scene-HTML generation) completely unmodified, through an embedded Python
+dd_cview reimplements the GUI shell (windows, docks, tables, the sequence
+widget, the 3D-view container, event wiring) that the retired PySide6
+`dd_molview-desktop` app used to provide, in native C++/Qt, while reusing
+`dd_viewer` (PDB/SDF parsing, contact/interaction detection, scoring, RMSD,
+scene-HTML generation) and `dd_cview_core` (multi-receptor/ligand
+collections, sequence extraction/HTML rendering, dashboard tables --
+absorbed from `dd_molview`'s core logic, unmodified, when `dd_molview` was
+retired in favor of this project) unmodified, through an embedded Python
 interpreter (pybind11). This module is the one, narrow surface the C++ side
 (`PythonBridge`, see `src/PythonBridge.cpp`) calls into: every method here
 takes/returns only plain strings (JSON) or primitives -- never a `pandas
@@ -13,8 +16,8 @@ into C++ -- so the pybind11 boundary itself stays trivial (no custom type
 casters, no `py::object` bookkeeping on the C++ side beyond one `Session`
 handle).
 
-`Session` mirrors `dd_molview.desktop.main_window.MainWindow`'s Python-side
-state and orchestration (`receptor_entries`, `ligand_entries`,
+`Session` was modeled on `dd_molview-desktop`'s own `MainWindow`'s
+Python-side state and orchestration (`receptor_entries`, `ligand_entries`,
 `active_receptor_idx`, `active_ligand_idx`, `reference_mol`, and the
 `_refresh_view`-equivalent recompute step) one-for-one -- the C++
 `MainWindow` owns the *display* state instead (which dock is visible, the
@@ -28,7 +31,7 @@ import math
 from typing import Optional
 
 import dd_viewer as dv
-import dd_molview as dm
+import dd_cview_core as dm
 
 
 def _json_safe(value):

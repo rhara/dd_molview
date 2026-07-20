@@ -1,7 +1,7 @@
 # Integration smoke test for PythonBridge (the embedded-Python <-> Qt
 # boundary) -- deliberately not a Qt GUI test (no QApplication/QWidget
 # involved): it just proves the whole pybind11 + CMake + conda-env wiring
-# actually loads dd_viewer/dd_molview and round-trips real sample data.
+# actually loads dd_viewer/dd_cview_core and round-trips real sample data.
 add_executable(dd_cview_bridge_test
   bridge_test.cpp
   ${CMAKE_SOURCE_DIR}/src/PythonBridge.cpp
