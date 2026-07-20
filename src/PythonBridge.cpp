@@ -137,8 +137,8 @@ struct PythonBridge::Impl {
 };
 
 PythonBridge::PythonBridge() : impl_(std::make_unique<Impl>()) {
-    // dd_viewer (and its own dependencies -- RDKit, biopython, pandas,
-    // numpy) lives in a specific conda env's site-packages (see
+    // dd_viewer/dd_cview_core's own dependencies (RDKit, biopython,
+    // pandas, numpy) live in a specific conda env's site-packages (see
     // README.md's install instructions); point the embedded interpreter's
     // PYTHONHOME at that env's prefix *before* Py_Initialize runs, so
     // `site.py` finds them the same way `python3` invoked from that env
@@ -152,14 +152,15 @@ PythonBridge::PythonBridge() : impl_(std::make_unique<Impl>()) {
     py::module_ sys = py::module_::import("sys");
     // Drop any cwd-derived entry (an empty string, or the interpreter's
     // own inferred cwd) from sys.path before importing anything: dd_cview
-    // and dd_viewer live in sibling directories under the same ~/work
-    // parent, so if dd_cview is launched with cwd set to that parent
-    // directory, a bare "" entry resolves to a *namespace* package
-    // shadowing the real editable-installed one (a directory literally
-    // named "dd_viewer" sitting right there, with no __init__.py at that
-    // level) -- see the project's PROMPT for how this was diagnosed genuinely
-    // returning `None` for `dd_viewer.__file__`, silently importing an
-    // empty package.
+    // lives under the same ~/work parent as other, unrelated top-level
+    // directories that happen to be named after Python packages it
+    // imports (e.g. a leftover "dd_viewer" checkout with no __init__.py
+    // at its own top level), so if dd_cview is launched with cwd set to
+    // that parent directory, a bare "" entry resolves `import dd_viewer`
+    // to a broken *namespace* package rooted there instead of the real
+    // vendored python/dd_viewer/ -- see the project's PROMPT for how this
+    // was diagnosed genuinely returning `None` for `dd_viewer.__file__`,
+    // silently importing an empty package.
     py::list rawPath = sys.attr("path");
     py::list cleanPath;
     for (auto item : rawPath) {

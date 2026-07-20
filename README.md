@@ -10,12 +10,14 @@ rewritten in C++/Qt instead of PySide6. The computational logic underneath
 (PDB/SDF parsing, contact/interaction detection, scoring, RMSD, per-chain
 sequence extraction, 3D-scene HTML generation) is **not** reimplemented:
 `dd_cview` embeds a Python interpreter (via
-[pybind11](https://github.com/pybind/pybind11)) and calls straight into
-`dd_viewer`'s existing, unmodified Python package, plus its own vendored
-`dd_cview_core` module (multi-receptor/ligand collections, sequence
-extraction/HTML rendering, dashboard tables -- absorbed unmodified from
-`dd_molview`'s core logic when that project was retired in favor of this
-one), through one narrow JSON-in/JSON-out module,
+[pybind11](https://github.com/pybind/pybind11)) and calls straight into two
+vendored Python modules under `python/`: `dd_viewer` (PDB/SDF parsing,
+interaction detection, scoring, scene HTML -- absorbed unmodified from the
+retired standalone `dd_viewer` project) and `dd_cview_core`
+(multi-receptor/ligand collections, sequence extraction/HTML rendering,
+dashboard tables -- absorbed unmodified from `dd_molview`'s core logic when
+that project was retired in favor of this one), through one narrow
+JSON-in/JSON-out module,
 [`python/dd_cview_backend.py`](python/dd_cview_backend.py).
 
 `dd_molview-desktop` (PySide6) was functionally complete but noticeably
@@ -48,7 +50,8 @@ binding round-trip it didn't need to.
 └──────────────────────┬──────────────────────────────────────────────────┘
                         │ plain function calls, unmodified
                         ▼
-        dd_viewer (parsing, interactions, scoring, scene HTML)
+        dd_viewer (parsing, interactions, scoring, scene HTML --
+                   vendored, absorbed from the retired dd_viewer project)
         dd_cview_core (multi-receptor/ligand collections, sequence, dashboard --
                        vendored, absorbed from the retired dd_molview project)
 ```
@@ -80,36 +83,33 @@ Every platform needs the same three things: CMake ≥3.21 with a C++20
 compiler, Qt6 (`Core`, `Widgets`, `WebEngineWidgets`, `WebChannel` -- the
 `WebEngineWidgets` part specifically means a full Qt6 + Chromium-based
 `qtwebengine` install is required, not just `qtbase`), and a Python
-environment with `dd_viewer` installed (`dd_cview_core`, under `python/`,
-needs no separate install -- see below). Only the first two are
-platform-specific to set up.
+environment with `dd_viewer`/`dd_cview_core`'s own dependencies installed
+(both modules themselves, under `python/`, need no separate install --
+see below). Only the first two are platform-specific to set up.
 
 `dd_cview` gets its own dedicated conda env, **`dd_cview`** -- kept
 separate from the `dd` env other `dd_*` projects share, so rebuilding or
 upgrading a package for one of those doesn't risk breaking this build (and
-vice versa). It only needs `dd_viewer` itself plus the subset of its
-dependencies `dd_cview_backend.py`/`dd_cview_core` actually import at
-runtime (RDKit, biopython, pandas, numpy, py3Dmol) and `pybind11` --
-*not* `dd_viewer`'s own extra GUI/web dependencies (Streamlit), which
-`dd_cview`'s embedded backend never touches:
+vice versa). It only needs the subset of `dd_viewer`/`dd_cview_core`'s
+dependencies `dd_cview_backend.py` actually imports at runtime (RDKit,
+biopython, pandas, numpy, py3Dmol) and `pybind11` -- *not* `dd_viewer`'s
+own extra GUI/web dependencies (Streamlit), which `dd_cview`'s embedded
+backend never touches:
 
 ```bash
 mamba create -n dd_cview -c conda-forge \
     python=3.12 rdkit biopython pandas numpy py3dmol pybind11 pytest \
     qt6-main qt6-webengine
 conda activate dd_cview
-
-# dd_viewer itself isn't on conda-forge -- editable-install straight from
-# its checkout, --no-deps since the conda-installed dependencies above
-# already cover everything dd_cview actually imports. dd_cview_core (see
-# python/dd_cview_core/) is this project's own vendored module -- no
-# install needed, python/ is added to sys.path directly at runtime.
-pip install --no-deps -e ../dd_viewer
 ```
 
-`dd_cview_core`'s own pytest suite (`python/tests/`, ported from
-`dd_molview`'s test suite when that project's core logic was absorbed)
-runs standalone, no C++ build required:
+Neither `python/dd_viewer/` nor `python/dd_cview_core/` needs installing --
+both are this project's own vendored modules, and `python/` is added to
+sys.path directly at runtime (see `PythonBridge.cpp`).
+
+`dd_viewer`/`dd_cview_core`'s pytest suites (`python/tests/`, ported from
+each project's own test suite when it was absorbed) run standalone, no C++
+build required:
 
 ```bash
 PYTHONPATH=python pytest python/tests/
@@ -132,7 +132,7 @@ configured, falling back to the `dd_cview` env under the platform's
 default miniforge location if no conda env is active -- override with
 `-DDD_CVIEW_PYTHON=/path/to/python3` (or `...\python.exe`) on any platform
 to point at a different environment (a differently-named conda env, a
-plain venv) that has `dd_viewer` installed.
+plain venv) that has `dd_viewer`/`dd_cview_core`'s dependencies installed.
 
 ### macOS (Homebrew Qt6)
 
@@ -403,13 +403,14 @@ level.
   needs to know pybind11 exists, and the `Python.h`/`qobjectdefs.h` `slots`
   clash never has a chance to occur outside `PythonBridge.cpp`.
 - **PYTHONHOME is set explicitly, and `sys.path`'s cwd entry is stripped.**
-  `dd_viewer` and `dd_cview` live as sibling directories
-  under the same parent (`~/work`); if `dd_cview` is launched with that
+  `dd_cview` lives under the same parent directory (`~/work`) as other,
+  unrelated top-level checkouts that happen to share a name with a Python
+  package it imports (e.g. a leftover `dd_viewer` checkout with no
+  `__init__.py` at its own top level); if `dd_cview` is launched with that
   parent as its working directory, a bare `""` `sys.path` entry resolves
-  `import dd_viewer` to a broken *namespace* package rooted at the
-  directory literally named `dd_viewer` sitting right there (no
-  `__init__.py` at that level) instead of the real editable-installed
-  package -- silently, with `dd_viewer.__file__` coming back `None` rather
+  `import dd_viewer` to a broken *namespace* package rooted at that
+  directory instead of the real vendored `python/dd_viewer/` -- silently,
+  with `dd_viewer.__file__` coming back `None` rather
   than raising. `PythonBridge`'s constructor strips any empty/cwd-derived
   `sys.path` entry before importing anything, so this can't happen
   regardless of where the binary is launched from.
