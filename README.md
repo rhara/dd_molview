@@ -103,17 +103,17 @@ mamba create -n dd_molview -c conda-forge \
 conda activate dd_molview
 ```
 
-> **Known limitation: Intel Mac (`osx-64`) is not supported by this route.**
+> **Known limitation: Intel Mac (`osx-64`) can't get Qt6 from conda-forge.**
 > conda-forge does not publish `qt6-webengine` builds for `osx-64` -- only
 > `osx-arm64`, `linux-64`, and `win-64` are available -- so the `mamba
 > create ... qt6-main qt6-webengine` command above fails to solve on Intel
 > Mac (`... qt6-webengine =* * does not exist`). `dd_suite/scripts/
-> install_all.py` detects this and skips `dd_molview`'s env automatically
-> on `osx-64`. Workaround: drop `qt6-main qt6-webengine` from the `mamba
-> create` line and use a system Qt6 install instead -- see [macOS (Homebrew
-> Qt6)](#macos-homebrew-qt6) below (`brew install qt` ships `qtwebengine`
-> for both Apple Silicon and Intel bottles); this route has not been
-> build-verified specifically on Intel Mac by this project (see [Verified
+> install_all.py` detects this and drops just `qt6-main qt6-webengine` from
+> the env it creates on `osx-64` (everything else installs normally).
+> Workaround for the Qt6 side: use a system Qt6 install instead -- see
+> [macOS (Homebrew Qt6)](#macos-homebrew-qt6) below (`brew install qt`
+> ships `qtwebengine` for both Apple Silicon and Intel bottles); this route
+> has not been build-verified specifically on Intel Mac by this project (see [Verified
 > behavior](#verified-behavior)), only on macOS generally.
 
 Neither `python/dd_viewer/` nor `python/dd_molview_core/` needs installing --
